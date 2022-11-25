@@ -1,4 +1,3 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:pose_detection/controller/home_controller.dart';
@@ -19,11 +18,15 @@ class HomePage extends StatelessWidget {
               if (controller.loaded) {
                 return Stack(
                   children: [
-                    CameraPreview(controller.cameraController),
+
+                    // CameraPreview(controller.cameraController),
                     CustomPaint(
-                      size: const Size(720, 1280),
-                        painter: PointOnCamera(
-                            pointPosition: controller.pointPosition))
+                      foregroundPainter: PointOnCamera(
+                            pointPosition: controller.pointPosition),
+                      child: Image.asset("images/man.jpg")),
+                    Positioned(child: ElevatedButton(child: Text("pick"),onPressed: (){
+
+                    },))
                   ],
                 );
               }
