@@ -7,6 +7,12 @@ class HomeController extends GetxController {
   late List<CameraDescription> _cameras;
   late CameraController cameraController;
 
+  int count = 0;
+
+  List<Map<String,double>> pointPosition = [];
+
+  bool loaded = false;
+
   @override
   Future<void> onReady() async {
     super.onReady();
@@ -14,6 +20,7 @@ class HomeController extends GetxController {
 
     cameraController = CameraController(_cameras[0], ResolutionPreset.max);
     cameraController.initialize().then((_) {
+      loaded = true;
       update();
       imageStreaming();
     }).catchError((Object e) {
@@ -31,58 +38,58 @@ class HomeController extends GetxController {
   }
 
   imageStreaming() {
+    print("Size x-axis = ${cameraController.value.previewSize?.width} y-axis = ${cameraController.value.previewSize?.height}");
+
     cameraController.startImageStream((image) async {
+      count++;
+      if (count == 10) {
+        count = 0;
+        final WriteBuffer allBytes = WriteBuffer();
+        for (final Plane plane in image.planes) {
+          allBytes.putUint8List(plane.bytes);
+        }
+        final bytes = allBytes.done().buffer.asUint8List();
 
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
+        final Size imageSize =
+            Size(image.width.toDouble(), image.height.toDouble());
+
+        const InputImageRotation imageRotation =
+            InputImageRotation.rotation0deg;
+
+        final InputImageFormat inputImageFormat =
+            InputImageFormatValue.fromRawValue(image.format.raw) ??
+                InputImageFormat.nv21;
+
+        final planeData = image.planes.map(
+          (Plane plane) {
+            return InputImagePlaneMetadata(
+              bytesPerRow: plane.bytesPerRow,
+              height: plane.height,
+              width: plane.width,
+            );
+          },
+        ).toList();
+
+        final inputImageData = InputImageData(
+          size: imageSize,
+          imageRotation: imageRotation,
+          inputImageFormat: inputImageFormat,
+          planeData: planeData,
+        );
+
+        final inputImage = InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
+
+        final options = PoseDetectorOptions(mode: PoseDetectionMode.single,model: PoseDetectionModel.accurate);
+        final poseDetector = PoseDetector(options: options);
+
+        final List<Pose> poses = await poseDetector.processImage(inputImage);
+
+
+        pointPosition = poses.first.landmarks.values.map((e) => {"top": e.x,"left":e.y}).toList();
+        print("points $pointPosition");
+
+            update();
       }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-
-      const InputImageRotation imageRotation = InputImageRotation.rotation0deg;
-
-      final InputImageFormat inputImageFormat =
-          InputImageFormatValue.fromRawValue(image.format.raw) ??
-              InputImageFormat.nv21;
-
-      final planeData = image.planes.map(
-        (Plane plane) {
-          return InputImagePlaneMetadata(
-            bytesPerRow: plane.bytesPerRow,
-            height: plane.height,
-            width: plane.width,
-          );
-        },
-      ).toList();
-
-      final inputImageData = InputImageData(
-        size: imageSize,
-        imageRotation: imageRotation,
-        inputImageFormat: inputImageFormat,
-        planeData: planeData,
-      );
-
-      final inputImage = InputImage.fromBytes(bytes: bytes, inputImageData: inputImageData);
-
-      final options = PoseDetectorOptions(mode: PoseDetectionMode.single);
-      final poseDetector = PoseDetector(options: options);
-
-      final List<Pose> poses = await poseDetector.processImage(inputImage);
-
-      for (Pose pose in poses) {
-
-        pose.landmarks.forEach((_, landmark) {
-          // final type = landmark.type;
-          final x = landmark.x;
-          final y = landmark.y;
-
-          print(" x-axis = $x y-axis = $y");
-        });
-      }
-      // to access specific landmarks
-      // final landmark = pose.landmarks[PoseLandmarkType.nose];
     });
   }
 }
